@@ -44,7 +44,7 @@ export default function InputBox({ onSubmit, commands, active, history }) {
         return
       }
       if (key.upArrow) {
-        if (menuOpen && matches.length) return setMenuIdx((i) => (i + matches.length - 1) % matches.length)
+        if (menuOpen && matches.length) return setMenuIdx((i) => (i - 1 + matches.length) % matches.length)
         if (history.length) {
           const next = histIdx === -1 ? history.length - 1 : Math.max(0, histIdx - 1)
           setHistIdx(next)
@@ -106,14 +106,30 @@ export default function InputBox({ onSubmit, commands, active, history }) {
     <Box flexDirection="column">
       {menuOpen && matches.length > 0 && (
         <Box flexDirection="column" marginLeft={2} marginBottom={1}>
-          {matches.slice(0, 6).map((c, i) => (
-            <Text key={c.name}>
-              <Text color={i === sel ? color.accent : color.dim}>
-                {i === sel ? '❯ ' : '  '}/{c.name.padEnd(14)}
-              </Text>
-              <Text color={color.faint}>{c.desc}</Text>
-            </Text>
-          ))}
+          {(() => {
+            const PAGE = 6
+            const start = Math.min(Math.max(0, sel - PAGE + 1), Math.max(0, matches.length - PAGE))
+            const visible = matches.slice(start, start + PAGE)
+            return (
+              <>
+                {start > 0 && <Text color={color.faint}>  ↑ {start} more</Text>}
+                {visible.map((c, j) => {
+                  const abs = start + j
+                  return (
+                    <Text key={c.name}>
+                      <Text color={abs === sel ? color.accent : color.dim}>
+                        {abs === sel ? '❯ ' : '  '}/{c.name.padEnd(14)}
+                      </Text>
+                      <Text color={color.faint}>{c.desc}</Text>
+                    </Text>
+                  )
+                })}
+                {start + PAGE < matches.length && (
+                  <Text color={color.faint}>  ↓ {matches.length - start - PAGE} more</Text>
+                )}
+              </>
+            )
+          })()}
         </Box>
       )}
       <Text color={color.faint}>{hr(2)}</Text>

@@ -8,35 +8,31 @@ export default function LogItem({ item }) {
   switch (item.kind) {
     case 'banner':
       return (
-        <Box flexDirection="column" marginBottom={1}>
+        <Box flexDirection="column" marginTop={1} marginBottom={2}>
           <Box flexDirection="row">
             <Mascot />
             <Box flexDirection="column">
+              {/* push text down by 1 row to visually centre against 5-row triangle */}
+              <Text> </Text>
               <Text>
-                <Text bold color={color.user}>
-                  Manix
-                </Text>
+                <Text bold color={color.user}>Manix</Text>
                 <Text color={color.faint}>  v{item.version}</Text>
               </Text>
               <Text color={color.dim}>{item.model}</Text>
               <Text color={color.faint}>{item.cwd}</Text>
             </Box>
           </Box>
-          <Box marginTop={1} flexDirection="column">
+          <Box flexDirection="column" marginTop={1} marginLeft={1}>
             {!item.hasManixmd && (
-              <Text color={color.faint}>
-                {GLYPH.info} MANIX.md not found — /init to create
-              </Text>
+              <Text color={color.faint}>{GLYPH.info} MANIX.md not found — /init to create</Text>
             )}
-            <Text color={color.faint}>
-              {GLYPH.info} {item.tip}
-            </Text>
+            <Text color={color.faint}>{GLYPH.info} {item.tip}</Text>
           </Box>
         </Box>
       )
     case 'user':
       return (
-        <Box marginTop={1}>
+        <Box marginTop={2}>
           <Text color={color.accent}>{GLYPH.user} </Text>
           <Text color={color.user}>{item.text}</Text>
         </Box>

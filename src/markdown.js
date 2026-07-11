@@ -1,23 +1,38 @@
-import { t } from './theme.js'
+import chalk from 'chalk'
+import { t, color } from './theme.js'
+
+const codeBg = chalk.bgHex('#1e2030')
+const codeText = chalk.hex(color.code).bgHex('#1e2030')
+const gutterCol = chalk.hex(color.border).bgHex('#1e2030')
+const labelCol = chalk.hex(color.faint)
+const termWidth = () => Math.min(process.stdout.columns || 80, 120)
 
 /** Tiny terminal markdown renderer: fences, headings, lists, bold, inline code, links. */
 export function renderMarkdown(md) {
   const out = []
   let inCode = false
+  let lang = ''
   for (const line of String(md).split('\n')) {
     const fence = line.match(/^\s*```(\S*)/)
     if (fence) {
       inCode = !inCode
-      out.push(inCode ? t.faint('┌╴' + (fence[1] || 'code')) : t.faint('└╴'))
+      lang = fence[1] || ''
+      if (inCode) {
+        const label = lang ? ` ${lang} ` : ' code '
+        out.push(labelCol('  ╭─') + labelCol(label) + labelCol('─'.repeat(Math.max(2, termWidth() - label.length - 6))))
+      } else {
+        out.push(labelCol('  ╰' + '─'.repeat(termWidth() - 3)))
+      }
       continue
     }
     if (inCode) {
-      out.push(t.faint('│ ') + t.code(line))
+      const padded = ' ' + line + ' '.repeat(Math.max(0, termWidth() - line.length - 3))
+      out.push(gutterCol('  │') + codeText(padded))
       continue
     }
     out.push(renderLine(line))
   }
-  if (inCode) out.push(t.faint('└╴')) // unterminated fence while streaming
+  if (inCode) out.push(labelCol('  ╰' + '─'.repeat(termWidth() - 3))) // unterminated fence while streaming
   return out.join('\n')
 }
 

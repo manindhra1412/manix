@@ -97,6 +97,7 @@ export class Agent {
 
   async send(text) {
     this.pushMessage({ role: 'user', content: text })
+    this.h.onStats?.(this.stats())
     await this.run()
   }
 

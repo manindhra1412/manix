@@ -1,16 +1,23 @@
 import React from 'react'
 import { Box, Text } from 'ink'
-import { MASCOT, color, lerpColor } from '../theme.js'
+import { color, lerpColor } from '../theme.js'
 
-/** Small pixel-art logo mark, top (coral) to bottom (amber) gradient. */
+// 5-row triangle: row i has (2i+1) glyphs, centred in width 9
+const ROWS = 5
+const lines = Array.from({ length: ROWS }, (_, i) => {
+  const glyphs = 2 * i + 1
+  const pad = ROWS - 1 - i
+  return { glyphs, pad }
+})
+
 export default function Mascot() {
   return (
     <Box flexDirection="column" marginRight={2}>
-      {MASCOT.map((row, i) => {
-        const c = lerpColor(color.accent, color.amber, MASCOT.length > 1 ? i / (MASCOT.length - 1) : 0)
+      {lines.map(({ glyphs, pad }, i) => {
+        const c = lerpColor(color.accent, color.amber, i / (ROWS - 1))
         return (
           <Text key={i}>
-            {[...row].map((ch, j) => (ch === '#' ? c('██') : '  ')).join('')}
+            {' '.repeat(pad)}{c('▲'.repeat(glyphs))}
           </Text>
         )
       })}

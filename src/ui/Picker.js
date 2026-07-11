@@ -23,17 +23,19 @@ export default function Picker({ title, load, onSelect, onCancel }) {
   const filtered = (items || []).filter((it) =>
     (it.label + ' ' + (it.extra || '')).toLowerCase().includes(q.toLowerCase()),
   )
-  const visible = filtered.slice(0, 10)
-  const sel = visible.length ? Math.min(idx, visible.length - 1) : 0
+  const PAGE = 10
+  const sel = filtered.length ? ((idx % filtered.length) + filtered.length) % filtered.length : 0
+  const start = Math.min(Math.max(0, sel - PAGE + 1), Math.max(0, filtered.length - PAGE))
+  const visible = filtered.slice(start, start + PAGE)
 
   useInput((input, key) => {
     if (key.escape) return onCancel()
     if (key.return) {
-      if (visible.length) onSelect(visible[sel])
+      if (filtered.length) onSelect(filtered[sel])
       return
     }
-    if (key.upArrow) return setIdx(() => Math.max(0, sel - 1))
-    if (key.downArrow) return setIdx(() => Math.min(visible.length - 1, sel + 1))
+    if (key.upArrow) return setIdx((i) => ((i - 1) + filtered.length) % filtered.length)
+    if (key.downArrow) return setIdx((i) => (i + 1) % filtered.length)
     if (key.backspace || key.delete) {
       setQ((s) => s.slice(0, -1))
       setIdx(0)
@@ -57,16 +59,21 @@ export default function Picker({ title, load, onSelect, onCancel }) {
       </Text>
       {error && <Text color={color.err}>{error}</Text>}
       {!items && !error && <Text color={color.dim}>loading…</Text>}
-      {visible.map((it, i) => (
-        <Text key={it.id ?? it.label}>
-          <Text color={i === sel ? color.accent : color.user}>
-            {i === sel ? '❯ ' : '  '}
-            {it.label}
+      {start > 0 && <Text color={color.faint}>  ↑ {start} more</Text>}
+      {visible.map((it) => {
+        const abs = filtered.indexOf(it)
+        return (
+          <Text key={it.id ?? it.label}>
+            <Text color={abs === sel ? color.accent : color.user}>
+              {abs === sel ? '❯ ' : '  '}
+              {it.label}
+            </Text>
+            {it.extra ? <Text color={color.dim}>  {it.extra}</Text> : null}
           </Text>
-          {it.extra ? <Text color={color.dim}>  {it.extra}</Text> : null}
-        </Text>
-      ))}
-      {items && !visible.length && <Text color={color.dim}>no matches</Text>}
+        )
+      })}
+      {start + PAGE < filtered.length && <Text color={color.faint}>  ↓ {filtered.length - start - PAGE} more</Text>}
+      {items && !filtered.length && <Text color={color.dim}>no matches</Text>}
       <Text color={color.faint}>↑↓ select · enter confirm · esc cancel · {filtered.length} items</Text>
     </Box>
   )
