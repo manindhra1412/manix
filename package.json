@@ -1,6 +1,6 @@
 {
   "name": "manix",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Manix — a fast, beautiful terminal coding agent powered by OpenRouter. Any model, one key.",
   "type": "module",
   "bin": {
