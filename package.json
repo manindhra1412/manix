@@ -1,5 +1,5 @@
 {
-  "name": "manix",
+  "name": "@manix-cli/manix",
   "version": "0.1.1",
   "description": "Manix — a fast, beautiful terminal coding agent powered by OpenRouter. Any model, one key.",
   "type": "module",
@@ -44,6 +44,6 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/manindhra/manix.git"
+    "url": "git+https://github.com/manindhra1412/manix.git"
   }
 }
