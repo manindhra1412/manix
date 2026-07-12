@@ -4,6 +4,7 @@ export function slashCommands(skills = []) {
     { name: 'help', desc: 'Show commands and shortcuts' },
     { name: 'model', desc: 'Switch model — picker, or /model <id>' },
     { name: 'resume', desc: 'Resume a previous session' },
+    { name: 'rewind', desc: 'Pick a past turn and revert all file changes since then' },
     { name: 'clear', desc: 'Start a fresh conversation' },
     { name: 'compact', desc: 'Summarize history to free context' },
     { name: 'cost', desc: 'Session usage + OpenRouter credits' },

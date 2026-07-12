@@ -27,6 +27,7 @@ export default function App({
   initialPrompt,
   resumeTarget,
   yolo,
+  screen,
 }) {
   const { exit } = useApp()
   const [ready, setReady] = useState(!!config.apiKey)
@@ -47,6 +48,10 @@ export default function App({
   const [model, setModelState] = useState(config.model)
   const [yoloOn, setYoloOn] = useState(!!yolo)
   const [exitHint, setExitHint] = useState(false)
+  // { text, seq } — seq bumps on every rewind so useEffect always fires
+  const [prefill, setPrefill] = useState({ text: '', seq: 0 })
+  // Bumped to force <Static> to remount and repaint only the kept items (rewind).
+  const [staticKey, setStaticKey] = useState(0)
 
   const keyRef = useRef(0)
   const agentRef = useRef(null)
@@ -75,9 +80,12 @@ export default function App({
   }
 
   function runPrompt(text, displayText = text) {
+    // keyRef.current is the key the user item is about to receive — capture it
+    // before pushing so rewind can trim everything from this message onward.
+    const watermark = keyRef.current
     push({ kind: 'user', text: displayText })
     setBusy(true)
-    agentRef.current.send(text).finally(() => {
+    agentRef.current.send(text, watermark, displayText).finally(() => {
       setBusy(false)
       setActivity(null)
     })
@@ -178,6 +186,11 @@ export default function App({
         return setOverlay({ type: 'models' })
       case 'resume':
         return setOverlay({ type: 'sessions' })
+      case 'rewind': {
+        const turns = agentRef.current.turns()
+        if (!turns.length) return push({ kind: 'info', text: 'Nothing to rewind — no turns in this session yet.' })
+        return setOverlay({ type: 'rewind', turns })
+      }
       default:
         return
     }
@@ -317,11 +330,57 @@ export default function App({
         }}
         onCancel={() => setOverlay(null)}
       />
+    ) : overlay?.type === 'rewind' ? (
+      <Picker
+        title="Rewind to a message — its file edits (and everything after) are reverted"
+        load={() =>
+          overlay.turns.map((t) => {
+            const parts = []
+            if (t.snapshots) parts.push(`${t.snapshots} file edit${t.snapshots !== 1 ? 's' : ''}`)
+            if (t.bashCount) parts.push(`${t.bashCount} bash`)
+            return {
+              id: String(t.index),
+              label: t.label || '(empty)',
+              extra: parts.length ? parts.join(' · ') : 'no file changes',
+            }
+          })
+        }
+        onSelect={(it) => {
+          setOverlay(null)
+          const index = Number(it.id)
+          const turn = overlay.turns.find((t) => t.index === index)
+          const watermark = turn?.itemCount ?? 0
+          const { files, bashCount } = agentRef.current.rewind(index)
+          // Build a note about what was reverted, to show in the trimmed transcript.
+          const notes = []
+          if (files > 0) notes.push(`reverted ${files} file change${files !== 1 ? 's' : ''}`)
+          if (bashCount > 0)
+            notes.push(
+              `${bashCount} bash command${bashCount !== 1 ? 's' : ''} ran after this point — any files they changed were NOT reverted`,
+            )
+          const notice = notes.length
+            ? { kind: 'info', text: `Rewound — ${notes.join('; ')}.`, key: keyRef.current++ }
+            : null
+          // Physically wipe the terminal + Ink's committed <Static> buffer, trim the
+          // log to items before the rewound message, then remount <Static> so it
+          // repaints only those. Without this the old lines stay on screen.
+          screen?.reset?.()
+          setItems((prev) => {
+            const kept = prev.filter((x) => x.key < watermark)
+            return notice ? [...kept, notice] : kept
+          })
+          setStaticKey((k) => k + 1)
+          // Drop the rewound message back into the composer to edit and resend.
+          setPrefill((p) => ({ text: turn?.label || '', seq: p.seq + 1 }))
+          setStats(agentRef.current.stats())
+        }}
+        onCancel={() => setOverlay(null)}
+      />
     ) : null
 
   return (
     <Box flexDirection="column">
-      <Static items={items}>{(item) => <LogItem key={item.key} item={item} />}</Static>
+      <Static key={staticKey} items={items}>{(item) => <LogItem key={item.key} item={item} />}</Static>
       {streamText ? (
         <Box marginTop={1}>
           <Text color={color.accent}>{GLYPH.assistant} </Text>
@@ -348,6 +407,7 @@ export default function App({
               commands={commands}
               active={!busy}
               history={historyRef.current}
+              prefill={prefill}
             />
             <Footer model={model} stats={stats} yolo={yoloOn} cwd={cwd} exitHint={exitHint} />
           </Box>

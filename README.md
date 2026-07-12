@@ -29,6 +29,8 @@ or `export OPENROUTER_API_KEY=...`.
   `--yolo` to live dangerously.
 - **Any model** — `/model` opens a live picker with context windows and $/M pricing.
 - **Sessions** — every conversation is saved; `manix --continue` or `/resume`.
+- **Rewind** — `/rewind` jumps back to any earlier message: reverts the file edits it made,
+  trims the chat, and drops the message back in the composer to redo.
 - **MANIX.md** — project memory auto-loaded each session; generate with `/init`.
 - **Skills** — drop a `SKILL.md` playbook in `~/.manix/skills/<name>/` or `.manix/skills/<name>/`;
   the agent loads it when relevant, or invoke directly with `/<name>`.
@@ -45,11 +47,12 @@ or `export OPENROUTER_API_KEY=...`.
 | `/help` | commands & shortcuts | `manix "task"` | start with a prompt |
 | `/model [id]` | switch model | `-p, --print` | non-interactive mode |
 | `/resume` | resume a session | `-m, --model <id>` | model for this run |
-| `/compact` | summarize history | `-c, --continue` | resume last session |
-| `/cost` | usage + credits | `-r, --resume [id]` | pick a session |
-| `/mcp` `/skills` | status / list | `--yolo` | auto-approve tools |
-| `/init` | generate MANIX.md | `-v` `-h` | version / help |
-| `/clear` `/yolo` `/exit` | | `echo task \| manix` | pipe a prompt |
+| `/rewind` | revert to a past message | `-c, --continue` | resume last session |
+| `/compact` | summarize history | `-r, --resume [id]` | pick a session |
+| `/cost` | usage + credits | `--yolo` | auto-approve tools |
+| `/mcp` `/skills` | status / list | `-v` `-h` | version / help |
+| `/init` | generate MANIX.md | `echo task \| manix` | pipe a prompt |
+| `/clear` `/yolo` `/exit` | | | |
 
 Shortcuts: **Esc** interrupt · **↑/↓** history · **Tab** complete · **Ctrl+C** twice to quit.
 

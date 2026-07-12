@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import { streamChat, fetchModels, cachedModels } from './openrouter.js'
 import { systemPrompt, COMPACT_PROMPT } from './prompts.js'
 import { builtinTools, toOpenAI } from './tools/index.js'
@@ -10,6 +12,10 @@ import { appendMessage, createSession } from './sessions.js'
  *   onTextDelta(d) · onAssistantDone(text) · onToolStart({display}) ·
  *   onToolEnd({display, ok, summary}) · onInfo(msg) · onError(msg) ·
  *   onStats(stats) · requestPermission({display, preview}) → 'once'|'always'|'no'
+ *
+ * Rewind: one checkpoint is opened per user message (see send()). It records the
+ * message/UI watermark plus file snapshots taken as tools mutate the tree, so
+ * /rewind can drop back to just before any past message and undo its edits.
  */
 export class Agent {
   constructor({ config, cwd, permissions, mcp, skills, contextFiles, handlers }) {
@@ -24,6 +30,12 @@ export class Agent {
     this.messages = []
     this.session = null
     this.usage = { prompt: 0, completion: 0, cost: 0, requests: 0 }
+    // One entry per user message:
+    //   { label, messageCount, itemCount, bashCount, snapshots: [{path, before, existed}] }
+    // messageCount / itemCount are the history + UI lengths *before* the message,
+    // i.e. the state to restore to when rewinding onto this checkpoint.
+    this.checkpoints = []
+    this._currentCheckpoint = null
     this.contextLength = 128_000
     this.ac = null
     // Warm the models cache (pricing + context window) in the background.
@@ -59,6 +71,51 @@ export class Agent {
   reset() {
     this.messages = []
     this.session = null
+    this.checkpoints = []
+  }
+
+  /** Turn list for the /rewind picker (one entry per user message). */
+  turns() {
+    return this.checkpoints.map((cp, i) => ({
+      index: i,
+      label: cp.label,
+      snapshots: cp.snapshots.length,
+      bashCount: cp.bashCount,
+      itemCount: cp.itemCount,
+    }))
+  }
+
+  /**
+   * Rewind to just before checkpoint `index`. Restores every file touched from
+   * `index` onward to its pre-range content, trims history + checkpoints, and
+   * returns { files, bashCount } so the UI can report what happened.
+   */
+  rewind(index) {
+    // Walk checkpoints oldest→newest so the FIRST snapshot seen for a path is the
+    // oldest — that's the file's state before the rewound range began.
+    const seen = new Set()
+    const restores = []
+    let bashCount = 0
+    for (let i = index; i < this.checkpoints.length; i++) {
+      bashCount += this.checkpoints[i].bashCount || 0
+      for (const snap of this.checkpoints[i].snapshots) {
+        if (seen.has(snap.path)) continue
+        seen.add(snap.path)
+        restores.push(snap)
+      }
+    }
+    for (const snap of restores) {
+      if (!snap.existed) {
+        try { fs.unlinkSync(snap.path) } catch {}
+      } else {
+        try { fs.writeFileSync(snap.path, snap.before) } catch {}
+      }
+    }
+    // Trim history + checkpoints back to before this message.
+    this.messages = this.messages.slice(0, this.checkpoints[index].messageCount)
+    this.checkpoints = this.checkpoints.slice(0, index)
+    this.h.onStats?.(this.stats())
+    return { files: restores.length, bashCount }
   }
 
   buildTools() {
@@ -95,10 +152,27 @@ export class Agent {
     this.ac?.abort()
   }
 
-  async send(text) {
+  /**
+   * Send a user message. `itemCount` is the UI log watermark (key of the item
+   * for this message) and `label` is what to show / refill on rewind — both are
+   * captured by the caller *before* the message is drawn. Opens one checkpoint.
+   */
+  async send(text, itemCount = 0, label = null) {
+    this._currentCheckpoint = {
+      label: (label ?? String(text)).split('\n')[0].slice(0, 72),
+      messageCount: this.messages.length,
+      itemCount,
+      bashCount: 0,
+      snapshots: [],
+    }
+    this.checkpoints.push(this._currentCheckpoint)
     this.pushMessage({ role: 'user', content: text })
     this.h.onStats?.(this.stats())
-    await this.run()
+    try {
+      await this.run()
+    } finally {
+      this._currentCheckpoint = null
+    }
   }
 
   async run() {
@@ -139,6 +213,7 @@ export class Agent {
             content: result.length > 60_000 ? result.slice(0, 60_000) + '\n…[truncated]' : result,
           })
         }
+
         if (this.estimateTokens() > this.contextLength * 0.8) {
           this.h.onInfo?.('Context above 80% — run /compact to summarize and free space.')
         }
@@ -182,6 +257,21 @@ export class Agent {
     }
 
     this.h.onToolStart?.({ display })
+    // Record what this turn touches so /rewind can undo it. File edits are
+    // snapshotted (restorable); bash is only counted (we can't reliably undo it).
+    if (this._currentCheckpoint) {
+      if ((name === 'write_file' || name === 'edit_file') && args.path) {
+        const absPath = path.resolve(this.cwd, args.path)
+        const existed = fs.existsSync(absPath)
+        this._currentCheckpoint.snapshots.push({
+          path: absPath,
+          existed,
+          before: existed ? fs.readFileSync(absPath, 'utf8') : null,
+        })
+      } else if (name === 'bash') {
+        this._currentCheckpoint.bashCount++
+      }
+    }
     try {
       const out = String(await tool.run(args, { cwd: this.cwd }))
       this.h.onToolEnd?.({ display, ok: true, summary: summarize(out) })

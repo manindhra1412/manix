@@ -1,14 +1,23 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Box, Text, useInput } from 'ink'
 import chalk from 'chalk'
 import { color, hr } from '../theme.js'
 
 /** Line editor: cursor movement, history, slash-command menu, ctrl+a/e/u. */
-export default function InputBox({ onSubmit, commands, active, history }) {
+export default function InputBox({ onSubmit, commands, active, history, prefill }) {
   const [value, setValue] = useState('')
   const [pos, setPos] = useState(0)
   const [histIdx, setHistIdx] = useState(-1)
   const [menuIdx, setMenuIdx] = useState(0)
+
+  // When parent injects a prefill (e.g. after /rewind), seed the input.
+  // prefill is { text, seq } — seq change fires even if text is the same.
+  useEffect(() => {
+    if (!prefill?.text) return
+    setValue(prefill.text)
+    setPos(prefill.text.length)
+    setHistIdx(-1)
+  }, [prefill?.seq])
 
   const menuOpen = active && value.startsWith('/') && !value.includes(' ')
   const matches = menuOpen

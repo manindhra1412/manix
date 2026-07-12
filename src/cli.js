@@ -107,6 +107,21 @@ mcp.start(mcpConfigs)
 const { render } = await import('ink')
 const { default: App } = await import('./ui/App.js')
 
+// Lets the UI wipe the transcript on /rewind. Ink's <Static> commits output
+// permanently and accumulates it in `fullStaticOutput`, which no public API
+// resets — so we clear that field, erase the dynamic region, and blank the
+// terminal (screen + scrollback). The remounted <Static> then reprints only
+// the kept items. See ink/build/ink.js onRender/clear.
+const screen = {
+  reset() {
+    try {
+      instance.clear()
+      instance.fullStaticOutput = ''
+    } catch {}
+    process.stdout.write('\x1b[2J\x1b[3J\x1b[H')
+  },
+}
+
 const instance = render(
   <App
     config={config}
@@ -118,6 +133,7 @@ const instance = render(
     initialPrompt={prompt || null}
     resumeTarget={args.resume || null}
     yolo={!!args.yolo}
+    screen={screen}
   />,
   { exitOnCtrlC: false },
 )
